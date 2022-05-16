@@ -36,6 +36,8 @@ pub enum SetVerParseError {
 	UnclosedBrace,
 	/// The string is empty.
 	Empty,
+	/// There's more than one set here.
+	TooManySets,
 }
 
 impl Display for SetVerParseError {
@@ -48,6 +50,7 @@ impl Display for SetVerParseError {
 				Self::NonUniqueElements => "Set contains non-unique subsets".to_string(),
 				Self::UnclosedBrace => "Unclosed set brace".to_string(),
 				Self::Empty => "Empty string".to_string(),
+				Self::TooManySets => "Too many sets (more than one)".to_string(),
 			}
 		)
 	}
@@ -65,10 +68,11 @@ impl TryFrom<&str> for SetVersion {
 		if open_curly != '{' {
 			return Err(SetVerParseError::IllegalCharacter(open_curly));
 		}
+
 		// Find the matching brace.
 		let mut brace_level = 1;
 		let mut inner_sets = vec!["".to_owned()];
-		for next_char in chars {
+		for next_char in &mut chars {
 			match next_char {
 				'{' => brace_level += 1,
 				'}' => brace_level -= 1,
@@ -85,14 +89,24 @@ impl TryFrom<&str> for SetVersion {
 		if brace_level != 0 {
 			return Err(SetVerParseError::UnclosedBrace);
 		}
+		if chars.next() != None {
+			return Err(SetVerParseError::TooManySets);
+		}
+
 		// The last set is a still-empty character collector if we got braces to match correctly.
 		inner_sets.remove(inner_sets.len() - 1);
 		if inner_sets.len() == 0 {
 			return Ok(Self::default());
 		}
-		Ok(Self {
-			versions: inner_sets.iter().map(|string_set| string_set.as_str().try_into()).collect::<Result<_, _>>()?,
-		})
+
+		let versions = inner_sets
+			.iter()
+			.map(|string_set| string_set.as_str().try_into())
+			.collect::<Result<BTreeSet<SetVersion>, SetVerParseError>>()?;
+		if versions.len() < inner_sets.len() {
+			return Err(SetVerParseError::NonUniqueElements);
+		}
+		Ok(Self { versions })
 	}
 }
 
@@ -102,7 +116,10 @@ mod tests {
 
 	#[test]
 	fn parse_correct_setver() -> Result<(), SetVerParseError> {
-		for test_string in ["{}", "{{}}", "{{}{{}}}", "{{}{{}}{{}{{}}}}", "{{{{{{{}}}}}}}"] {
+		// Note that there are other valid forms of these SetVer versions, but we need to use the canonical form where the smallest sets come first so that we can ensure they re-serialize correctly.
+		for test_string in
+			["{}", "{{}}", "{{}{{}}}", "{{}{{}}{{}{{}}}}", "{{{{{{{}}}}}}}", "{{}{{}}{{{}}}}", "{{}{{{}}{{}{{}}}}}"]
+		{
 			assert_eq!(SetVersion::try_from(test_string)?.to_string(), test_string);
 		}
 
@@ -112,5 +129,13 @@ mod tests {
 	#[test]
 	fn parse_incorrect_setver() {
 		assert_eq!(SetVersion::try_from("").unwrap_err(), SetVerParseError::Empty);
+		assert_eq!(SetVersion::try_from("asd").unwrap_err(), SetVerParseError::IllegalCharacter('a'));
+		assert_eq!(SetVersion::try_from("{{b}}").unwrap_err(), SetVerParseError::IllegalCharacter('b'));
+		SetVersion::try_from("{{}{}").unwrap_err();
+		SetVersion::try_from("}{}").unwrap_err();
+		assert_eq!(SetVersion::try_from("{}{}").unwrap_err(), SetVerParseError::TooManySets);
+		assert_eq!(SetVersion::try_from("{{}{}}").unwrap_err(), SetVerParseError::NonUniqueElements);
+		assert_eq!(SetVersion::try_from("{{{}{}}{}}").unwrap_err(), SetVerParseError::NonUniqueElements);
+		assert_eq!(SetVersion::try_from("{{}{{}{{}}}{{}{{}}}}").unwrap_err(), SetVerParseError::NonUniqueElements);
 	}
 }
