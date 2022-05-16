@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Display;
+use std::str::FromStr;
 
 /// A SetVer version specification.
 /// # Implementation details
@@ -56,9 +57,9 @@ impl Display for SetVerParseError {
 	}
 }
 
-impl TryFrom<&str> for SetVersion {
-	type Error = SetVerParseError;
-	fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl FromStr for SetVersion {
+	type Err = SetVerParseError;
+	fn from_str(value: &str) -> Result<Self, Self::Err> {
 		// The smallest allowed setver specification is "{}" at length 2.
 		if value.len() < 2 {
 			return Err(SetVerParseError::Empty);
@@ -101,7 +102,7 @@ impl TryFrom<&str> for SetVersion {
 
 		let versions = inner_sets
 			.iter()
-			.map(|string_set| string_set.as_str().try_into())
+			.map(|string_set| string_set.parse())
 			.collect::<Result<BTreeSet<SetVersion>, SetVerParseError>>()?;
 		if versions.len() < inner_sets.len() {
 			return Err(SetVerParseError::NonUniqueElements);
@@ -120,7 +121,7 @@ mod tests {
 		for test_string in
 			["{}", "{{}}", "{{}{{}}}", "{{}{{}}{{}{{}}}}", "{{{{{{{}}}}}}}", "{{}{{}}{{{}}}}", "{{}{{{}}{{}{{}}}}}"]
 		{
-			assert_eq!(SetVersion::try_from(test_string)?.to_string(), test_string);
+			assert_eq!(test_string.parse::<SetVersion>()?.to_string(), test_string);
 		}
 
 		Ok(())
@@ -128,14 +129,14 @@ mod tests {
 
 	#[test]
 	fn parse_incorrect_setver() {
-		assert_eq!(SetVersion::try_from("").unwrap_err(), SetVerParseError::Empty);
-		assert_eq!(SetVersion::try_from("asd").unwrap_err(), SetVerParseError::IllegalCharacter('a'));
-		assert_eq!(SetVersion::try_from("{{b}}").unwrap_err(), SetVerParseError::IllegalCharacter('b'));
-		SetVersion::try_from("{{}{}").unwrap_err();
-		SetVersion::try_from("}{}").unwrap_err();
-		assert_eq!(SetVersion::try_from("{}{}").unwrap_err(), SetVerParseError::TooManySets);
-		assert_eq!(SetVersion::try_from("{{}{}}").unwrap_err(), SetVerParseError::NonUniqueElements);
-		assert_eq!(SetVersion::try_from("{{{}{}}{}}").unwrap_err(), SetVerParseError::NonUniqueElements);
-		assert_eq!(SetVersion::try_from("{{}{{}{{}}}{{}{{}}}}").unwrap_err(), SetVerParseError::NonUniqueElements);
+		assert_eq!("".parse::<SetVersion>().unwrap_err(), SetVerParseError::Empty);
+		assert_eq!("asd".parse::<SetVersion>().unwrap_err(), SetVerParseError::IllegalCharacter('a'));
+		assert_eq!("{{b}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::IllegalCharacter('b'));
+		"{{}{}".parse::<SetVersion>().unwrap_err();
+		"}{}".parse::<SetVersion>().unwrap_err();
+		assert_eq!("{}{}".parse::<SetVersion>().unwrap_err(), SetVerParseError::TooManySets);
+		assert_eq!("{{}{}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
+		assert_eq!("{{{}{}}{}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
+		assert_eq!("{{}{{}{{}}}{{}{{}}}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
 	}
 }
