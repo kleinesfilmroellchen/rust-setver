@@ -16,13 +16,101 @@ pub struct SetVersion {
 	versions: BTreeSet<SetVersion>,
 }
 
+impl SetVersion {
+	/// Implements the SetVer comparison function, as per [the specification](https://github.com/RocketRace/setver#version-comparison-comparison).
+	///
+	/// The only returned values are 0, 1, Infinity and NaN.
+	pub fn setver_compare(&self, other: &SetVersion) -> f32 {
+		if self.is_subset(other) {
+			0.0
+		} else if self == other {
+			1.0
+		} else if other.is_subset(self) {
+			f32::INFINITY
+		} else {
+			f32::NAN
+		}
+	}
+
+	/// Returns whether this SetVer version is a subset of the other version, according to standard set laws.
+	pub fn is_subset(&self, other: &SetVersion) -> bool {
+		self.versions.is_subset(&other.versions)
+	}
+
+	/// Returns whether this SetVer version is a strict subset of the other version, according to standard set laws.
+	pub fn is_strict_subset(&self, other: &SetVersion) -> bool {
+		!other.is_superset(self)
+	}
+	/// Returns whether this SetVer version is a superset of the other version, according to standard set laws.
+	pub fn is_superset(&self, other: &SetVersion) -> bool {
+		self.versions.is_superset(&other.versions)
+	}
+
+	/// Returns whether this SetVer version is a strict superset of the other version, according to standard set laws.
+	pub fn is_strict_superset(&self, other: &SetVersion) -> bool {
+		!other.is_subset(self)
+	}
+	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative). This is the same as converting a `SetVersion` into an `u128`.
+	/// # Panics
+	/// For obvious reasons (if you know how the integralternative works), SetVersions with more than 128 braces in their text representation cannot be stored in a u128.
+	/// In this case, this function will panic. Use `to_integralternative_bytes` instead.
+	pub fn to_integralternative(&self) -> u128 {
+		self.into()
+	}
+
+	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative).
+	/// The return value is not as practical as the one of `to_integralternative`, but it can always represent the integralternative and will never panic.
+	///
+	/// The returned bytes are in LSB-first order (little-endian).
+	pub fn to_integralternative_bytes(&self) -> Vec<u8> {
+		// Could be done more efficiently, but this saves us a bunch of code.
+		// FIXME: This is not correct, somewhere the orders are not flipped correctly.
+		let mut stringified = String::from(self);
+		let mut bytes = unsafe { stringified.as_bytes_mut() };
+		bytes.reverse();
+		bytes.chunks(8)
+			// We only have ASCII '{' and '}', so this is fine.
+			.map(|chunk| unsafe { String::from_utf8_unchecked(chunk.to_vec()) })
+			.inspect(|v|println!("{}",v))
+			// Convert chunks
+			.map(|string| string.chars().map(|c| match c {
+					'{' => 0,
+					'}' => 1,
+					_ => unreachable!()
+				}).fold(0, |a, b| (a << 1) | b))
+			.collect()
+	}
+}
+
 impl Display for SetVersion {
+	/// The stringified version is always in canonical form, meaning that small sets are printed first.
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{{")?;
 		for version in &self.versions {
 			version.fmt(f)?;
 		}
 		write!(f, "}}")
+	}
+}
+
+impl From<&SetVersion> for String {
+	fn from(this: &SetVersion) -> Self {
+		format!("{}", this)
+	}
+}
+
+impl From<&SetVersion> for u128 {
+	fn from(this: &SetVersion) -> Self {
+		let bytes = this.to_integralternative_bytes();
+		// Not representable
+		if bytes.len() > 128 / 8 {
+			panic!("Integralternative of {} is too large to be represented with u128", this);
+		}
+		let mut result = 0u128;
+		for byte in bytes {
+			result = (result << 8) | (byte as u128);
+		}
+		result
 	}
 }
 
@@ -65,7 +153,7 @@ impl FromStr for SetVersion {
 			return Err(SetVerParseError::Empty);
 		}
 		let mut chars = value.chars();
-		let open_curly = chars.nth(0).unwrap();
+		let open_curly = chars.next().unwrap();
 		if open_curly != '{' {
 			return Err(SetVerParseError::IllegalCharacter(open_curly));
 		}
@@ -96,7 +184,7 @@ impl FromStr for SetVersion {
 
 		// The last set is a still-empty character collector if we got braces to match correctly.
 		inner_sets.remove(inner_sets.len() - 1);
-		if inner_sets.len() == 0 {
+		if inner_sets.is_empty() {
 			return Ok(Self::default());
 		}
 
@@ -138,5 +226,21 @@ mod tests {
 		assert_eq!("{{}{}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
 		assert_eq!("{{{}{}}{}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
 		assert_eq!("{{}{{}{{}}}{{}{{}}}}".parse::<SetVersion>().unwrap_err(), SetVerParseError::NonUniqueElements);
+	}
+
+	#[test]
+	fn equality() {
+		assert_eq!("{}".parse::<SetVersion>().unwrap(), "{}".parse::<SetVersion>().unwrap());
+		assert_ne!("{{{}}}".parse::<SetVersion>().unwrap(), "{{}}".parse::<SetVersion>().unwrap());
+		assert_eq!("{{}{{}}}".parse::<SetVersion>().unwrap(), "{{{}}{}}".parse::<SetVersion>().unwrap());
+		assert_eq!(
+			"{{{{}{{}}}{{}}}{}}".parse::<SetVersion>().unwrap(),
+			"{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap()
+		);
+	}
+
+	#[test]
+	fn integralternative() {
+		// assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap().to_integralternative(), 871);
 	}
 }
