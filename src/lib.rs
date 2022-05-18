@@ -148,6 +148,24 @@ impl From<&SetVersion> for u128 {
 	}
 }
 
+impl PartialEq<u128> for SetVersion {
+	/// Checks whether the integer is the canonical integralternative of this setver.
+	fn eq(&self, other: &u128) -> bool {
+		self.to_integralternative() == *other
+	}
+}
+
+impl PartialEq<&str> for SetVersion {
+	/// Checks whether the string parses to the same setver.
+	/// If the string is not a setver version, they are not equal.
+	fn eq(&self, other: &&str) -> bool {
+		match other.parse::<SetVersion>() {
+			Ok(other_setver) => self == &other_setver,
+			Err(_) => false,
+		}
+	}
+}
+
 /// The errors that can happen when parsing a SetVer.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum SetVerParseError {
@@ -271,11 +289,13 @@ mod tests {
 			"{{{{}{{}}}{{}}}{}}".parse::<SetVersion>().unwrap(),
 			"{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap()
 		);
+		assert_eq!("{{{{}{{}}}{{}}}{}}".parse::<SetVersion>().unwrap(), "{{}{{{}}{{}{{}}}}}");
 	}
 
 	#[test]
 	fn integralternative() {
 		assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap().to_integralternative(), 35999);
+		assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap(), 35999);
 		assert_eq!(SetVersion::string_to_integralternative("{{{{}}{}}{{}}}"), 871);
 		assert_eq!(SetVersion::string_to_integralternative("{{{}}{{{}}{}}}"), 1591);
 	}
