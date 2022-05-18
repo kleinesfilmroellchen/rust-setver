@@ -50,12 +50,23 @@ impl SetVersion {
 	pub fn is_strict_superset(&self, other: &SetVersion) -> bool {
 		!other.is_subset(self)
 	}
+
 	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative). This is the same as converting a `SetVersion` into an `u128`.
 	/// # Panics
 	/// For obvious reasons (if you know how the integralternative works), SetVersions with more than 128 braces in their text representation cannot be stored in a u128.
 	/// In this case, this function will panic. Use `to_integralternative_bytes` instead.
 	pub fn to_integralternative(&self) -> u128 {
 		self.into()
+	}
+
+	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative) and operates on a string.
+	/// This is convenient if the canonicalized form of the given setver spec is different from the string.
+	/// # Panics
+	/// For obvious reasons (if you know how the integralternative works), SetVersions with more than 128 braces in their text representation cannot be stored in a u128.
+	/// In this case, this function will panic. Use `to_integralternative_bytes` instead.
+	pub fn string_to_integralternative(setver: &str) -> u128 {
+		let bytes = Self::string_to_integralternative_bytes(setver);
+		Self::u128_from_vec(bytes)
 	}
 
 	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative).
@@ -65,10 +76,19 @@ impl SetVersion {
 	pub fn to_integralternative_bytes(&self) -> Vec<u8> {
 		// Could be done more efficiently, but this saves us a bunch of code.
 		let stringified = String::from(self);
+		Self::string_to_integralternative_bytes(&stringified)
+	}
+
+	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative) but operates directly on a string.
+	/// This is convenient if the canonicalized form of the given setver spec is different from the string.
+	/// The return value is not as practical as the one of `to_integralternative`, but it can always represent the integralternative and will never panic.
+	///
+	/// The returned bytes are in LSB-first order (little-endian).
+	pub fn string_to_integralternative_bytes(setver: &str) -> Vec<u8> {
 		let mut current_byte = 0;
 		let mut bytes = Vec::new();
 		let mut bit_count = 0;
-		for c in stringified.chars().rev() {
+		for c in setver.chars().rev() {
 			current_byte = (current_byte >> 1)
 				| match c {
 					'{' => 0,
@@ -83,10 +103,24 @@ impl SetVersion {
 			}
 		}
 		if bit_count != 0 {
+			// The shift-down is incomplete.
+			current_byte = current_byte >> (8 - bit_count);
 			bytes.push(current_byte);
 		}
 		bytes.reverse();
 		bytes
+	}
+
+	/// Does the "byte packing" required for the simple integralternative functions.
+	fn u128_from_vec(vec: Vec<u8>) -> u128 {
+		if vec.len() > 128 / 8 {
+			panic!("Input {:?} is too large to be represented in u128", vec);
+		}
+		let mut result = 0u128;
+		for byte in vec {
+			result = (result << 8) | (byte as u128);
+		}
+		result
 	}
 }
 
@@ -110,15 +144,7 @@ impl From<&SetVersion> for String {
 impl From<&SetVersion> for u128 {
 	fn from(this: &SetVersion) -> Self {
 		let bytes = this.to_integralternative_bytes();
-		// Not representable
-		if bytes.len() > 128 / 8 {
-			panic!("Integralternative of {} is too large to be represented with u128", this);
-		}
-		let mut result = 0u128;
-		for byte in bytes {
-			result = (result << 8) | (byte as u128);
-		}
-		result
+		SetVersion::u128_from_vec(bytes)
 	}
 }
 
@@ -250,5 +276,7 @@ mod tests {
 	#[test]
 	fn integralternative() {
 		assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap().to_integralternative(), 35999);
+		assert_eq!(SetVersion::string_to_integralternative("{{{{}}{}}{{}}}"), 871);
+		assert_eq!(SetVersion::string_to_integralternative("{{{}}{{{}}{}}}"), 1591);
 	}
 }
