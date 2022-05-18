@@ -64,21 +64,29 @@ impl SetVersion {
 	/// The returned bytes are in LSB-first order (little-endian).
 	pub fn to_integralternative_bytes(&self) -> Vec<u8> {
 		// Could be done more efficiently, but this saves us a bunch of code.
-		// FIXME: This is not correct, somewhere the orders are not flipped correctly.
-		let mut stringified = String::from(self);
-		let mut bytes = unsafe { stringified.as_bytes_mut() };
-		bytes.reverse();
-		bytes.chunks(8)
-			// We only have ASCII '{' and '}', so this is fine.
-			.map(|chunk| unsafe { String::from_utf8_unchecked(chunk.to_vec()) })
-			.inspect(|v|println!("{}",v))
-			// Convert chunks
-			.map(|string| string.chars().map(|c| match c {
+		let stringified = String::from(self);
+		let mut current_byte = 0;
+		let mut bytes = Vec::new();
+		let mut bit_count = 0;
+		for c in stringified.chars().rev() {
+			current_byte = (current_byte >> 1)
+				| match c {
 					'{' => 0,
-					'}' => 1,
-					_ => unreachable!()
-				}).fold(0, |a, b| (a << 1) | b))
-			.collect()
+					'}' => 1 << 7,
+					_ => unreachable!(),
+				};
+			bit_count += 1;
+			if bit_count > 7 {
+				bit_count = 0;
+				bytes.push(current_byte);
+				current_byte = 0;
+			}
+		}
+		if bit_count != 0 {
+			bytes.push(current_byte);
+		}
+		bytes.reverse();
+		bytes
 	}
 }
 
@@ -241,6 +249,6 @@ mod tests {
 
 	#[test]
 	fn integralternative() {
-		// assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap().to_integralternative(), 871);
+		assert_eq!("{{}{{{}}{{}{{}}}}}".parse::<SetVersion>().unwrap().to_integralternative(), 35999);
 	}
 }
