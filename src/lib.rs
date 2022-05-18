@@ -33,6 +33,12 @@ impl SetVersion {
 	}
 
 	/// Returns whether this SetVer version is a subset of the other version, according to standard set laws.
+	/// ```rust
+	/// use setver::SetVersion;
+	/// let first_version: SetVersion = "{}".parse().unwrap();
+	/// let second_version: SetVersion = "{{}}".parse().unwrap();
+	/// assert!(first_version.is_subset(&second_version));
+	/// ```
 	pub fn is_subset(&self, other: &SetVersion) -> bool {
 		self.versions.is_subset(&other.versions)
 	}
