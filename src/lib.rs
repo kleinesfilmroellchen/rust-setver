@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Display;
+use std::rc::Rc;
 use std::str::FromStr;
 
 /// A SetVer version specification.
@@ -13,7 +14,7 @@ use std::str::FromStr;
 #[derive(Eq, PartialEq, Clone, Debug, Ord, PartialOrd, Default)]
 pub struct SetVersion {
 	/// Making this an ordered set guarantees that all iterations are performed in order, which gives some nice guarantees for faster implementations.
-	versions: BTreeSet<SetVersion>,
+	versions: BTreeSet<Rc<SetVersion>>,
 }
 
 impl SetVersion {
@@ -58,7 +59,7 @@ impl SetVersion {
 	}
 
 	/// Adds the given version as a child version. This is useful when constructing a parent version for one or many previous child versions.
-	pub fn add_child_version(&mut self, child: SetVersion) -> &mut Self {
+	pub fn add_child_version(&mut self, child: Rc<SetVersion>) -> &mut Self {
 		self.versions.insert(child);
 		self
 	}
@@ -254,8 +255,8 @@ impl FromStr for SetVersion {
 
 		let versions = inner_sets
 			.iter()
-			.map(|string_set| string_set.parse())
-			.collect::<Result<BTreeSet<SetVersion>, SetVerParseError>>()?;
+			.map(|string_set| string_set.parse::<SetVersion>().map(Rc::new))
+			.collect::<Result<BTreeSet<Rc<SetVersion>>, SetVerParseError>>()?;
 		if versions.len() < inner_sets.len() {
 			return Err(SetVerParseError::NonUniqueElements);
 		}
