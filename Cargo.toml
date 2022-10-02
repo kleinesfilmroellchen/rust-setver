@@ -2,6 +2,6 @@
 edition = "2021"
 name = "setver"
 description = "SetVer versioning scheme implementation in Rust"
-version = "0.1.0"
+version = "0.2.0"
 license-file = "LICENSE"
 repository = "https://github.com/kleinesfilmroellchen/rust-setver"
