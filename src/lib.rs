@@ -110,7 +110,7 @@ impl SetVersion {
 		}
 		if bit_count != 0 {
 			// The shift-down is incomplete.
-			current_byte = current_byte >> (8 - bit_count);
+			current_byte >>= 8 - bit_count;
 			bytes.push(current_byte);
 		}
 		bytes.reverse();
