@@ -57,6 +57,12 @@ impl SetVersion {
 		!other.is_subset(self)
 	}
 
+	/// Adds the given version as a child version. This is useful when constructing a parent version for one or many previous child versions.
+	pub fn add_child_version(&mut self, child: SetVersion) -> &mut Self {
+		self.versions.insert(child);
+		self
+	}
+
 	/// Implements the [Integralternative](https://github.com/RocketRace/setver#the-integralternative). This is the same as converting a `SetVersion` into an `u128`.
 	/// # Panics
 	/// For obvious reasons (if you know how the integralternative works), SetVersions with more than 128 braces in their text representation cannot be stored in a u128.
