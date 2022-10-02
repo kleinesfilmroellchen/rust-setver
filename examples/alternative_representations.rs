@@ -1,11 +1,16 @@
-
 use setver::SetVersion;
 use std::env::args;
 
 fn main() {
 	let mut args = args();
 	args.next();
-	if let Some(version) = args.next() {
+	if let Some(mut version) = args.next() {
+		if &version == "-" {
+			version = String::new();
+			std::io::stdin().read_line(&mut version).expect("couldn't read setver from stdin");
+			version = version.trim().to_owned();
+		}
+
 		let canonicalized = version.parse::<SetVersion>().expect("invalid setver version");
 		let canonicalized_str = canonicalized.to_string();
 		let original_width = version.len().max("direct".len());
