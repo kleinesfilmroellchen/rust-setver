@@ -23,6 +23,16 @@ cargo add setver
 
 Read the [documentation](https://docs.rs/setver/latest/setver/) for more information about how to use setver.
 
+## Changelog
+
+### 0.1.0
+
+Initial release.
+
+### 0.2.0
+
+Add the `add_child_version` function which allows for easier building of related SetVers.
+
 ## License
 
 Only MIT right now, I can't be bothered with Apache at the moment.
