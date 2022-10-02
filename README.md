@@ -21,7 +21,7 @@ Add it to your project with Cargo:
 cargo add setver
 ```
 
-Read the [documentation](https://docs.rs/setver/0.1.0/setver/) for more information about how to use setver.
+Read the [documentation](https://docs.rs/setver/latest/setver/) for more information about how to use setver.
 
 ## License
 
